@@ -32,14 +32,14 @@ Please note: metric and cache are optional values and have the following default
 
 == Screenshots ==
 
-1. BeerXML recipe displayed in the 2011 theme.
+1. BeerXML recipe displayed in the twenty eleven theme.
 2. Inserting the shortcode into a post.
 
 == Changelog ==
 
 = 0.1.1 =
 
-Added text/xml as acceptable mime type for BeerXML document self-hosting.
+* Added text/xml as acceptable mime type for BeerXML document self-hosting.
 
 = 0.1 =
 
@@ -52,4 +52,3 @@ Here's some stuff that would be nice to add in the near future:
 * Custom CSS definition.
 * Auto unit select.
 * Quick unit select.
-* ~~BeerXML documents added to list of mime-types supported by the builtin uploader.~~
