@@ -12,7 +12,7 @@ License: GPL2
 /**
  * Class wrapper for BeerXML shortcode
  */
-class BeerXMLShortcode {
+class BeerXML_Shortcode {
 
 	/**
 	 * A simple call to init when constructed
@@ -40,6 +40,7 @@ class BeerXMLShortcode {
 		}
 
 		require_once( BEERXML_PATH . '/includes/classes.php' );
+		require_once( BEERXML_PATH . '/includes/mime.php' );
 
 		add_shortcode( 'beerxml', array( $this, 'beerxml_shortcode' ) );
 	}
@@ -343,4 +344,4 @@ YEAST;
 }
 
 // The fun starts here!
-new BeerXMLShortcode();
+new BeerXML_Shortcode();
