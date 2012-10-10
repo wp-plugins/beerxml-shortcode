@@ -37,7 +37,7 @@ Please note: metric and cache are optional values and have the following default
 
 == Changelog ==
 
-= 0.1.2b1 =
+= 0.1.2b2 =
 
 * Testing beta release procedure.
 
