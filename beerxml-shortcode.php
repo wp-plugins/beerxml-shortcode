@@ -4,9 +4,9 @@ Plugin Name: BeerXML Shortcode
 Plugin URI: http://wordpress.org/extend/plugins/beerxml-shortcode/
 Description: Automatically insert/display beer recipes by linking to a BeerXML document.
 Author: Derek Springer
-Version: 0.1.2b2
+Version: 0.2
 Author URI: http://12inchpianist.com
-License: GPL2
+License: GPL2 or later
 */
 
 /**
@@ -31,16 +31,18 @@ class BeerXML_Shortcode {
 			false,
 			dirname( plugin_basename( __FILE__ ) ) . '/languages/' );
 
-		if ( ! defined( 'BEERXML_URL' ) ) {
+		if ( ! defined( 'BEERXML_URL' ) )
 			define( 'BEERXML_URL', plugin_dir_url( __FILE__ ) );
-		}
 
-		if ( ! defined( 'BEERXML_PATH' ) ) {
+		if ( ! defined( 'BEERXML_PATH' ) )
 			define( 'BEERXML_PATH', plugin_dir_path( __FILE__ ) );
-		}
 
 		require_once( BEERXML_PATH . '/includes/classes.php' );
 		require_once( BEERXML_PATH . '/includes/mime.php' );
+
+		if ( is_admin() ) {
+			require_once( BEERXML_PATH . '/includes/admin.php' );
+		}
 
 		add_shortcode( 'beerxml', array( $this, 'beerxml_shortcode' ) );
 	}
@@ -68,9 +70,10 @@ class BeerXML_Shortcode {
 		}
 
 		extract( shortcode_atts( array(
-			'recipe' => null,
-			'cache'  => 60*60*12, // cache for 12 hours
-			'metric' => false // U.S. measurements
+			'recipe'   => null,
+			'cache'    => get_option( 'beerxml_shortcode_cache', 60*60*12 ), // cache for 12 hours
+			'metric'   => 2 == get_option( 'beerxml_shortcode_units', 1 ), // units
+			'download' => get_option( 'beerxml_shortcode_download', 1 )
 		), $atts ) );
 
 		if ( ! isset( $recipe ) ) {
@@ -87,7 +90,8 @@ class BeerXML_Shortcode {
 			$cache = 0;
 		}
 
-		$metric = (boolean) esc_attr( $metric );
+		$metric = filter_var( esc_attr( $metric ), FILTER_VALIDATE_BOOLEAN );
+		$download = filter_var( esc_attr( $download ), FILTER_VALIDATE_BOOLEAN );
 
 		if ( ! $cache || false === ( $beer_xml = get_transient( $recipe_id ) ) ) {
 			$beer_xml = new BeerXML( $recipe );
@@ -135,6 +139,8 @@ class BeerXML_Shortcode {
 						<th>$t_fg</th>
 						<th>$t_abv</th>
 					</tr>
+				</thead>
+				<tbody>
 					<tr>
 						<td>{$beer_xml->recipes[0]->batch_size} $t_vol</td>
 						<td>$btime $t_time</td>
@@ -144,7 +150,7 @@ class BeerXML_Shortcode {
 						<td>{$beer_xml->recipes[0]->est_fg}</td>
 						<td>{$beer_xml->recipes[0]->est_abv}</td>
 					</tr>
-				</thead>
+				</tbody>
 			</table>
 		</div>
 DETAILS;
@@ -169,8 +175,10 @@ DETAILS;
 						<th>$t_name</th>
 						<th>$t_amount</th>
 					</tr>
-					$fermentables
 				</thead>
+				<tbody>
+					$fermentables
+				</tbody>
 			</table>
 		</div>
 FERMENTABLES;
@@ -179,62 +187,144 @@ FERMENTABLES;
 		 * Hops Details
 		 **************/
 		$hops = '';
-		foreach ( $beer_xml->recipes[0]->hops as $hop ) {
-			$hops .= $this->build_hop( $hop, $metric );
+		if ( $beer_xml->recipes[0]->hops ) {
+			foreach ( $beer_xml->recipes[0]->hops as $hop ) {
+				$hops .= $this->build_hop( $hop, $metric );
+			}
+
+			$t_hops  = __( 'Hops', 'beerxml-shortcode' );
+			$t_time  = __( 'Time', 'beerxml-shortcode' );
+			$t_use   = __( 'Use', 'beerxml-shortcode' );
+			$t_form  = __( 'Form', 'beerxml-shortcode' );
+			$t_alpha = __( 'Alpha %', 'beerxml-shortcode' );
+			$hops = <<<HOPS
+			<div class='beerxml-hops'>
+				<h3>$t_hops</h3>
+				<table>
+					<thead>
+						<tr>
+							<th>$t_name</th>
+							<th>$t_amount</th>
+							<th>$t_time</th>
+							<th>$t_use</th>
+							<th>$t_form</th>
+							<th>$t_alpha</th>
+						</tr>
+					</thead>
+					<tbody>
+						$hops
+					</tbody>
+				</table>
+			</div>
+HOPS;
 		}
 
-		$t_hops  = __( 'Hops', 'beerxml-shortcode' );
-		$t_time  = __( 'Time', 'beerxml-shortcode' );
-		$t_use   = __( 'Use', 'beerxml-shortcode' );
-		$t_form  = __( 'Form', 'beerxml-shortcode' );
-		$t_alpha = __( 'Alpha %', 'beerxml-shortcode' );
-		$hops = <<<HOPS
-		<div class='beerxml-hops'>
-			<h3>$t_hops</h3>
-			<table>
-				<thead>
-					<tr>
-						<th>$t_name</th>
-						<th>$t_amount</th>
-						<th>$t_time</th>
-						<th>$t_use</th>
-						<th>$t_form</th>
-						<th>$t_alpha</th>
-					</tr>
-					$hops
-				</thead>
-			</table>
-		</div>
-HOPS;
+		/***************
+		 * Miscs
+		 **************/
+		$miscs = '';
+		if ( $beer_xml->recipes[0]->miscs ) {
+			foreach ( $beer_xml->recipes[0]->miscs as $misc ) {
+				$miscs .= $this->build_misc( $misc );
+			}
+
+			$t_miscs = __( 'Miscs', 'beerxml-shortcode' );
+			$t_type = __( 'Type', 'beerxml-shortcode' );
+			$miscs = <<<MISCS
+			<div class='beerxml-miscs'>
+				<h3>$t_miscs</h3>
+				<table>
+					<thead>
+						<tr>
+							<th>$t_name</th>
+							<th>$t_amount</th>
+							<th>$t_time</th>
+							<th>$t_use</th>
+							<th>$t_type</th>
+						</tr>
+					</thead>
+					<tbody>
+						$miscs
+					</tbody>
+				</table>
+			</div>
+MISCS;
+		}
 
 		/***************
 		 * Yeast Details
 		 **************/
 		$yeasts = '';
-		foreach ( $beer_xml->recipes[0]->yeasts as $yeast ) {
-			$yeasts .= $this->build_yeast( $yeast, $metric );
+		if ( $beer_xml->recipes[0]->yeasts ) {
+			foreach ( $beer_xml->recipes[0]->yeasts as $yeast ) {
+				$yeasts .= $this->build_yeast( $yeast, $metric );
+			}
+
+			$t_yeast       = __( 'Yeast', 'beerxml-shortcode' );
+			$t_lab         = __( 'Lab', 'beerxml-shortcode' );
+			$t_attenuation = __( 'Attenuation', 'beerxml-shortcode' );
+			$t_temperature = __( 'Temperature', 'beerxml-shortcode' );
+			$yeasts = <<<YEASTS
+			<div class='beerxml-yeasts'>
+				<h3>$t_yeast</h3>
+				<table>
+					<thead>
+						<tr>
+							<th>$t_name</th>
+							<th>$t_lab</th>
+							<th>$t_attenuation</th>
+							<th>$t_temperature</th>
+						</tr>
+					</thead>
+					<tbody>
+						$yeasts
+					</tbody>
+				</table>
+			</div>
+YEASTS;
 		}
 
-		$t_yeast       = __( 'Yeast', 'beerxml-shortcode' );
-		$t_lab         = __( 'Lab', 'beerxml-shortcode' );
-		$t_attenuation = __( 'Attenuation', 'beerxml-shortcode' );
-		$t_temperature = __( 'Temperature', 'beerxml-shortcode' );
-		$yeasts = <<<YEASTS
-		<div class='beerxml-yeasts'>
-			<h3>$t_yeast</h3>
-			<table>
-				<thead>
-					<tr>
-						<th>$t_name</th>
-						<th>$t_lab</th>
-						<th>$t_attenuation</th>
-						<th>$t_temperature</th>
-					</tr>
-					$yeasts
-				</thead>
-			</table>
-		</div>
-YEASTS;
+		/***************
+		 * Notes
+		 **************/
+		$notes = '';
+		if ( $beer_xml->recipes[0]->notes ) {
+			$t_notes = __( 'Notes', 'beerxml-shortcode' );
+			$formatted_notes = preg_replace( '/\n/', '<br />', $beer_xml->recipes[0]->notes );
+			$notes = <<<NOTES
+			<div class='beerxml-notes'>
+				<h3>$t_notes</h3>
+				<table>
+					<tbody>
+						<tr>
+							<td>$formatted_notes</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+NOTES;
+		}
+
+		/***************
+		 * Download link
+		 **************/
+		$link = '';
+		if ( $download ) {
+			$t_download = __( 'Download', 'beerxml-shortcode' );
+			$t_link = __( 'Download this recipe\'s BeerXML file', 'beerxml-shortcode' );
+			$link = <<<LINK
+			<div class="beerxml-download">
+				<h3>$t_download</h3>
+				<table>
+					<tbody>
+						<tr>
+							<td><a href="$recipe" download="$recipe_filename">$t_link</a></td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+LINK;
+		}
 
 		// stick 'em all together
 		$html = <<<HTML
@@ -242,7 +332,10 @@ YEASTS;
 			$details
 			$fermentables
 			$hops
+			$miscs
 			$yeasts
+			$notes
+			$link
 		</div>
 HTML;
 
@@ -264,7 +357,7 @@ HTML;
 			$fermentable->amount = round( $fermentable->amount, 3 );
 			$t_weight = __( 'kg', 'beerxml-shortcode' );
 		} else {
-			$fermentable->amount = round( $fermentable->amount * 2.20462, 2 );
+			$fermentable->amount = round( $fermentable->amount * 2.20462, 3 );
 			$t_weight = __( 'lbs', 'beerxml-shortcode' );
 		}
 
@@ -301,7 +394,7 @@ FERMENTABLE;
 
 		$hop->alpha = round( $hop->alpha, 1 );
 
-		return <<<FERMENTABLE
+		return <<<HOP
 		<tr>
 			<td>$hop->name</td>
 			<td>$hop->amount $t_weight</td>
@@ -310,7 +403,32 @@ FERMENTABLE;
 			<td>$hop->form</td>
 			<td>$hop->alpha</td>
 		</tr>
-FERMENTABLE;
+HOP;
+	}
+
+	/**
+	 * Build misc row
+	 * @param  BeerXML_Misc         hop misc to display
+	 * @return string               table row containing hop details
+	 */
+	static function build_misc( $misc ) {
+		if ( $misc->time >= 1440 ) {
+			$misc->time = round( $misc->time / 1440, 1);
+			$t_time = _n( 'day', 'days', $misc->time, 'beerxml-shortcode' );
+		} else {
+			$misc->time = round( $misc->time );
+			$t_time = __( 'min', 'beerxml-shortcode' );
+		}
+
+		return <<<MISC
+		<tr>
+			<td>$misc->name</td>
+			<td>$misc->display_amount</td>
+			<td>$misc->time $t_time</td>
+			<td>$misc->use</td>
+			<td>$misc->type</td>
+		</tr>
+MISC;
 	}
 
 	/**
