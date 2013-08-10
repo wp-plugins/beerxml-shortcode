@@ -8,7 +8,8 @@ class BeerXML {
 		if ( ! url_exists( $xml_loc ) )
 			return;
 
-		libxml_use_internal_errors(true);
+		libxml_disable_entity_loader();
+		libxml_use_internal_errors( true );
 		$xml = file_get_contents( $xml_loc );
 		$xrecipes = simplexml_load_string( $xml );
 		if ( ! $xrecipes )
@@ -181,6 +182,19 @@ class BeerXML_Fermentable {
 		foreach ( $fermentable as $k => $v ) {
 			$this->{strtolower( $k )} = esc_html( (string)$v );
 		}
+	}
+
+	public static function calculate_total( array $fermentables ) {
+		$total = 0;
+		foreach ( $fermentables as $fermentable ) {
+			$total += $fermentable->amount;
+		}
+
+		return $total;
+	}
+
+	public function percentage( $total ) {
+		return ( $this->amount / $total ) * 100;
 	}
 }
 
