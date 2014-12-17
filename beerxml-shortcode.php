@@ -4,8 +4,8 @@ Plugin Name: BeerXML Shortcode
 Plugin URI: http://wordpress.org/extend/plugins/beerxml-shortcode/
 Description: Automatically insert/display beer recipes by linking to a BeerXML document.
 Author: Derek Springer
-Version: 0.3.1
-Author URI: http://12inchpianist.com
+Version: 0.3.2
+Author URI: http://www.fivebladesbrewing.com/beerxml-plugin-wordpress/
 License: GPL2 or later
 */
 
@@ -272,7 +272,7 @@ HOPS;
 		$miscs = '';
 		if ( $beer_xml->recipes[0]->miscs ) {
 			foreach ( $beer_xml->recipes[0]->miscs as $misc ) {
-				$miscs .= $this->build_misc( $misc );
+				$miscs .= $this->build_misc( $misc, $metric );
 			}
 
 			$t_miscs = __( 'Miscs', 'beerxml-shortcode' );
@@ -487,7 +487,7 @@ HOP;
 	 * @param  BeerXML_Misc         hop misc to display
 	 * @return string               table row containing hop details
 	 */
-	static function build_misc( $misc ) {
+	static function build_misc( $misc, $metric = false ) {
 		if ( $misc->time >= 1440 ) {
 			$misc->time = round( $misc->time / 1440, 1);
 			$t_time = _n( 'day', 'days', $misc->time, 'beerxml-shortcode' );
@@ -496,10 +496,25 @@ HOP;
 			$t_time = __( 'min', 'beerxml-shortcode' );
 		}
 
+		$amount = '';
+		if ( ! empty( $misc->display_amount ) ) {
+			$amount = $misc->display_amount;
+		} else {
+			if ( $metric ) {
+				$misc->amount = round( $misc->amount * 1000, 1 );
+				$t_weight = __( 'g', 'beerxml-shortcode' );
+			} else {
+				$misc->amount = round( $misc->amount * 35.274, 2 );
+				$t_weight = __( 'oz', 'beerxml-shortcode' );
+			}
+
+			$amount = "{$misc->amount} $t_weight";
+		}
+
 		return <<<MISC
 		<tr>
 			<td>$misc->name</td>
-			<td>$misc->display_amount</td>
+			<td>$amount</td>
 			<td>$misc->time $t_time</td>
 			<td>$misc->use</td>
 			<td>$misc->type</td>
