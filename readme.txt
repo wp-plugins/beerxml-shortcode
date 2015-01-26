@@ -1,27 +1,34 @@
 === BeerXML Shortcode ===
-Contributors: derekspringer
+Contributors: derekspringer, zarathos
 Donate link: http://wordpressfoundation.org/donate/
 Tags: shortcode, beer, beerxml, homebrew, recipe
 Requires at least: 3.4
 Tested up to: 4.1
-Stable tag: 0.3.2
+Stable tag: 0.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
-Automatically insert/display beer recipes by linking to a BeerXML document.
+Automatically insert and display beer recipes by linking to a BeerXML document.
 
 == Description ==
 
-A shortcode for linking to beer recipes.
+A shortcode for displaying beer recipes.
 
-* Link to a BeerXML document to display recipe details, style details, fermentables, hops, miscs, yeast, and notes.
+* Link to a BeerXML document to display recipe details, style details, fermentables, hops, miscs, yeast, mash steps, fermentation schedule, and notes.
 * Allows you to easily switch between U.S. & Metric measurements.
 * Control if & how long recipe is cached.
 * Allow readers to download the recipe directly.
 
 It follows the basic format of:
 
-[beerxml recipe={URL} metric=true|false download=true|false style=true|false cache=-1|{seconds to cache}]
+[beerxml
+	recipe={URL}
+	metric=true|false
+	download=true|false
+	style=true|false
+	mash=true|false
+	fermentation=true|false
+	cache=-1|{seconds to cache}]
 
 Please note: metric, download, style, and cache are optional values and have the following defaults:
 
@@ -29,6 +36,8 @@ Please note: metric, download, style, and cache are optional values and have the
 * cache = 12 hours (60 x 60 x 12 seconds), -1 kills the cache and sets value to 0
 * download = true
 * style = true
+* mash = false
+* fermentation = false
 
 == Installation ==
 
@@ -42,6 +51,13 @@ Please note: metric, download, style, and cache are optional values and have the
 2. Inserting the shortcode into a post.
 
 == Changelog ==
+
+= 0.4 =
+
+Tom Sawyer edition: thanks to [ksolomon](https://github.com/ksolomon) and [jksnetwork](https://github.com/jksnetwork) for their pull requests.
+
+* Custom taxonomy for the beer style. Creates an archive of all beers added for each style with link to the list of beers for each style. @[ksolomon](https://github.com/dbspringer/beerxml-plugin/pull/5)
+* Added mash and fermentation details, defaulted to off. To include add mash=true or fermentation=true to shortcode or update the settings in the admin menu. @[jksnetwork](https://github.com/dbspringer/beerxml-plugin/pull/6)
 
 = 0.3.2 =
 
@@ -73,11 +89,3 @@ Please note: metric, download, style, and cache are optional values and have the
 = 0.1 =
 
 * First cut, allows basic display of details, fermentables, hops, and yeast information in U.S. or metric units.
-
-== TODO ==
-
-Here's some stuff that would be nice to add in the near future:
-
-* Custom CSS definition.
-* Auto unit select.
-* Quick unit select.
