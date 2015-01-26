@@ -2,11 +2,12 @@
 /*
 Plugin Name: BeerXML Shortcode
 Plugin URI: http://wordpress.org/extend/plugins/beerxml-shortcode/
-Description: Automatically insert/display beer recipes by linking to a BeerXML document.
+Description: Automatically insert and display beer recipes by linking to a BeerXML document.
 Author: Derek Springer
-Version: 0.3.2
 Author URI: http://www.fivebladesbrewing.com/beerxml-plugin-wordpress/
+Version: 0.4
 License: GPL2 or later
+Text Domain: beerxml-shortcode
 */
 
 /**
@@ -19,6 +20,7 @@ class BeerXML_Shortcode {
 	 */
 	function __construct() {
 		add_action( 'init', array( $this, 'init' ) );
+		add_action( 'init', array( $this, 'beer_style' ) );
 	}
 
 	/**
@@ -52,8 +54,53 @@ class BeerXML_Shortcode {
 	}
 
 	/**
+	 * Register Custom Taxonomy for Beer Style
+	 */
+	function beer_style() {
+		$labels = array(
+			'name'                       => __( 'Beer Styles', 'beerxml-shortcode' ),
+			'singular_name'              => __( 'Beer Style', 'beerxml-shortcode' ),
+			'menu_name'                  => __( 'Beer Style', 'beerxml-shortcode' ),
+			'all_items'                  => __( 'All Beer Styles', 'beerxml-shortcode' ),
+			'parent_item'                => __( 'Parent Beer Style', 'beerxml-shortcode' ),
+			'parent_item_colon'          => __( 'Parent Beer Style:', 'beerxml-shortcode' ),
+			'new_item_name'              => __( 'New Beer Style Name', 'beerxml-shortcode' ),
+			'add_new_item'               => __( 'Add New Beer Style', 'beerxml-shortcode' ),
+			'edit_item'                  => __( 'Edit Beer Style', 'beerxml-shortcode' ),
+			'update_item'                => __( 'Update Beer Style', 'beerxml-shortcode' ),
+			'separate_items_with_commas' => __( 'Separate beer styles with commas', 'beerxml-shortcode' ),
+			'search_items'               => __( 'Search Beer Styles', 'beerxml-shortcode' ),
+			'add_or_remove_items'        => __( 'Add or remove beer styles', 'beerxml-shortcode' ),
+			'choose_from_most_used'      => __( 'Choose from the most used beer styles', 'beerxml-shortcode' ),
+			'not_found'                  => __( 'Not Found', 'beerxml-shortcode' ),
+		);
+
+		$args = array(
+			'labels'                     => $labels,
+			'hierarchical'               => false,
+			'public'                     => true,
+			'show_ui'                    => true,
+			'show_admin_column'          => true,
+			'show_in_nav_menus'          => true,
+			'show_tagcloud'              => true,
+			'update_count_callback' 	 => '_update_post_term_count',
+			'query_var'					 => true,
+			'rewrite'           		 => array( 'slug' => 'beer-style' ),
+		);
+
+		register_taxonomy( 'beer_style', 'post', $args );
+	}
+
+	/**
 	 * Shortcode for BeerXML
-	 * [beerxml recipe=http://example.com/wp-content/uploads/2012/08/bowie-brown.xml cache=10800 metric=true download=true style=true]
+	 * [beerxml
+	 * 		recipe=http://example.com/wp-content/uploads/2012/08/bowie-brown.xml
+	 * 		cache=10800
+	 * 		metric=true
+	 * 		download=true
+	 * 		style=true
+	 * 		mash=true
+	 * 		fermentation=true]
 	 *
 	 * @param  array $atts shortcode attributes
 	 *                     recipe - URL to BeerXML document
@@ -62,6 +109,8 @@ class BeerXML_Shortcode {
 	 *                              false -> use U.S. values
 	 *                     download - true -> include link to BeerXML file
 	 *                     style - true -> include style details
+	 *                     mash - true -> include mash details
+	 *                     fermentation - true -> include fermentation details
 	 * @return string HTML to be inserted in shortcode's place
 	 */
 	function beerxml_shortcode( $atts ) {
@@ -76,11 +125,13 @@ class BeerXML_Shortcode {
 		}
 
 		extract( shortcode_atts( array(
-			'recipe'   => null,
-			'cache'    => get_option( 'beerxml_shortcode_cache', 60*60*12 ), // cache for 12 hours
-			'metric'   => 2 == get_option( 'beerxml_shortcode_units', 1 ), // units
-			'download' => get_option( 'beerxml_shortcode_download', 1 ), // include download link
-			'style'    => get_option( 'beerxml_shortcode_style', 1 ), // include style details
+			'recipe'       => null,
+			'cache'        => get_option( 'beerxml_shortcode_cache', 60*60*12 ), // cache for 12 hours
+			'metric'       => 2 == get_option( 'beerxml_shortcode_units', 1 ), // units
+			'download'     => get_option( 'beerxml_shortcode_download', 1 ), // include download link
+			'style'        => get_option( 'beerxml_shortcode_style', 1 ), // include style details
+			'mash'         => get_option( 'beerxml_shortcode_mash', 0 ), // include mash details
+			'fermentation' => get_option( 'beerxml_shortcode_fermentation', 0 ), // include fermentation details
 		), $atts ) );
 
 		if ( ! isset( $recipe ) ) {
@@ -97,9 +148,11 @@ class BeerXML_Shortcode {
 			$cache = 0;
 		}
 
-		$metric = filter_var( esc_attr( $metric ), FILTER_VALIDATE_BOOLEAN );
-		$download = filter_var( esc_attr( $download ), FILTER_VALIDATE_BOOLEAN );
-		$style = filter_var( esc_attr( $style ), FILTER_VALIDATE_BOOLEAN );
+		$metric       = filter_var( esc_attr( $metric ), FILTER_VALIDATE_BOOLEAN );
+		$download     = filter_var( esc_attr( $download ), FILTER_VALIDATE_BOOLEAN );
+		$style        = filter_var( esc_attr( $style ), FILTER_VALIDATE_BOOLEAN );
+		$mash         = filter_var( esc_attr( $mash ), FILTER_VALIDATE_BOOLEAN );
+		$fermentation = filter_var( esc_attr( $fermentation ), FILTER_VALIDATE_BOOLEAN );
 
 		if ( ! $cache || false === ( $beer_xml = get_transient( $recipe_id ) ) ) {
 			$beer_xml = new BeerXML( $recipe );
@@ -168,6 +221,7 @@ DETAILS;
 		 **************/
 		$style_details = '';
 		$t_name = __( 'Name', 'beerxml-shortcode' );
+
 		if ( $style && $beer_xml->recipes[0]->style ) {
 			$t_style = __( 'Style Details', 'beerxml-shortcode' );
 			$t_category = __( 'Cat.', 'beerxml-shortcode' );
@@ -332,6 +386,74 @@ YEASTS;
 		}
 
 		/***************
+		 * Mash Details
+		 **************/
+		$mash_details = '';
+		if ( $mash ) {
+			if ( $beer_xml->recipes[0]->mash->mash_steps ) {
+				foreach ( $beer_xml->recipes[0]->mash->mash_steps as $mash_step ) {
+					$mash_details .= $this->build_mash( $mash_step, $metric );
+				}
+
+				$t_mash           = __( 'Mash', 'beerxml-shortcode' );
+				$t_mash_step_name = __( 'Step', 'beerxml-shortcode' );
+				$t_mash_step_time = __( 'Time', 'beerxml-shortcode' );
+				$t_mash_step_temp = __( 'Temperature', 'beerxml-shortcode' );
+				$mash_details = <<<MASH
+				<div class='beerxml-mash'>
+					<h3>$t_mash</h3>
+					<table>
+						<thead>
+							<tr>
+								<th>$t_mash_step_name</th>
+								<th>$t_mash_step_temp</th>
+								<th>$t_mash_step_time</th>
+							</tr>
+						</thead>
+						<tbody>
+							$mash_details
+						</tbody>
+					</table>
+				</div>
+MASH;
+			}
+		}
+
+		/***************
+		 * Fermentation Details
+		 **************/
+		$fermentation_details = '';
+		if ( $fermentation ) {
+			$fermentation_steps = $this->build_fermentation_steps($beer_xml->recipes[0]);
+			foreach ( $fermentation_steps as $fermentation_step ) {
+				$fermentation_details .= $this->build_fermentation( $fermentation_step, $metric );
+			}
+
+			$t_fermentation           = __( 'Fermentation', 'beerxml-shortcode' );
+			$t_fermentation_step_name = __( 'Step', 'beerxml-shortcode' );
+			$t_fermentation_step_time = __( 'Time', 'beerxml-shortcode' );
+			$t_fermentation_step_temp = __( 'Temperature', 'beerxml-shortcode' );
+
+			$fermentation_details = <<<FERMENTATION
+			<div class='beerxml-fermentation'>
+				<h3>$t_fermentation</h3>
+				<table>
+					<thead>
+						<tr>
+							<th>$t_fermentation_step_name</th>
+							<th>$t_fermentation_step_time</th>
+							<th>$t_fermentation_step_temp</th>
+						</tr>
+					</thead>
+					<tbody>
+						$fermentation_details
+					</tbody>
+				</table>
+			</div>
+FERMENTATION;
+		}
+
+		/***************
 		 * Notes
 		 **************/
 		$notes = '';
@@ -382,6 +504,8 @@ LINK;
 			$hops
 			$miscs
 			$yeasts
+			$mash_details
+			$fermentation_details
 			$notes
 			$link
 		</div>
@@ -399,6 +523,8 @@ HTML;
 	 * @param  BeerXML_Style 		$style fermentable to display
 	 */
 	static function build_style( $style ) {
+		global $post;
+
 		$category = $style->category_number . ' ' . $style->style_letter;
 		$og_range = round( $style->og_min, 3 ) . ' - ' . round( $style->og_max, 3 );
 		$fg_range = round( $style->fg_min, 3 ) . ' - ' . round( $style->fg_max, 3 );
@@ -406,9 +532,23 @@ HTML;
 		$srm_range = round( $style->color_min, 1 ) . ' - ' . round( $style->color_max, 1 );
 		$carb_range = round( $style->carb_min, 1 ) . ' - ' . round( $style->carb_max, 1 );
 		$abv_range = round( $style->abv_min, 1 ) . ' - ' . round( $style->abv_max, 1 );
+
+		if ( ! term_exists( $style->name, 'beer_style' ) ) {
+			wp_insert_term( $style->name, 'beer_style' );
+		}
+
+		wp_set_object_terms( $post->ID, $style->name, 'beer_style' );
+
+		$catlist = get_the_terms( $post->ID, 'beer_style' );
+		$catlist = array_values( $catlist );
+		if ( $catlist && ! is_wp_error( $catlist ) ) {
+			$link = get_term_link( $catlist[0]->term_id, 'beer_style' );
+			$catname = "<a href='{$link}'>{$catlist[0]->name}</a>";
+		}
+
 		return <<<STYLE
 		<tr>
-			<td>{$style->name}</td>
+			<td>$catname</td>
 			<td>$category</td>
 			<td>$og_range</td>
 			<td>$fg_range</td>
@@ -549,6 +689,99 @@ MISC;
 			<td>{$yeast->min_temperature}°$t_temp - {$yeast->max_temperature}°$t_temp</td>
 		</tr>
 YEAST;
+	}
+
+	/**
+	 * Build mash row
+	 * @param  BeerXML_Mash_Step   $mash_details mash details to display
+	 * @param  boolean $metric     true to display values in metric
+	 * @return string              table row containing mash details
+	 */
+	static function build_mash( $mash_details, $metric = false ) {
+		if ( $metric ) {
+			$mash_details->step_temp = round( $mash_details->step_temp, 2 );
+			$t_temp = __( 'C', 'beerxml-shortcode' );
+		} else {
+			$mash_details->step_temp = round( ( $mash_details->step_temp * (9/5) ) + 32, 1 );
+			$t_temp = __( 'F', 'beerxml-shortcode' );
+		}
+
+		$mash_details->step_time = round( $mash_details->step_time );
+		$t_minutes = __( 'min', 'beerxml-shortcode' );
+
+		return <<<MASH
+		<tr>
+			<td>$mash_details->name</td>
+			<td>{$mash_details->step_temp}°$t_temp</td>
+			<td>{$mash_details->step_time} $t_minutes</td>
+		</tr>
+MASH;
+	}
+
+	/**
+	 * Build fermentation array
+	 * @param  BeerXML_Recipe       Main Recipe
+	 * @return array                fermentation steps
+	 */
+	static function build_fermentation_steps( $recipe ) {
+		$fermentation_stages = array();
+		if ( 1 <= $recipe->fermentation_stages ) {
+			$fermentation_stages[] = array(
+				'name' => 'Primary',
+				'time' => $recipe->primary_age,
+				'temp' => $recipe->primary_temp
+			);
+		}
+
+		if ( 2 <= $recipe->fermentation_stages ) {
+			$fermentation_stages[] = array(
+				'name' => 'Secondary',
+				'time' => $recipe->secondary_age,
+				'temp' => $recipe->secondary_temp
+			);
+		}
+
+		if ( 3 == $recipe->fermentation_stages ) {
+			$fermentation_stages[] = array(
+				'name' => 'Tertiary',
+				'time' => $recipe->tertiary_age,
+				'temp' => $recipe->tertiary_temp
+			);
+		}
+
+		$fermentation_stages[] = array(
+			'name' => 'Aging',
+			'time' => $recipe->age,
+			'temp' => $recipe->age_temp
+		);
+
+		return $fermentation_stages;
+	}
+
+	/**
+	 * Build fermentation row
+	 * @param  array   $fermentation_details	fermentation steps to display
+	 * @param  boolean $metric      			true to display values in metric
+	 * @return string               			table row containing fermentation details
+	 */
+	static function build_fermentation( $fermentation_details, $metric = false ) {
+		if ( $metric ) {
+			$fermentation_details['temp'] = round( $fermentation_details['temp'], 2 );
+			$t_temp = __( 'C', 'beerxml-shortcode' );
+		} else {
+			$fermentation_details['temp'] = round( ( $fermentation_details['temp'] * (9/5) ) + 32, 1 );
+			$t_temp = __( 'F', 'beerxml-shortcode' );
+		}
+
+		$fermentation_details['time'] = round( $fermentation_details['time'] );
+		$t_days = __( 'days', 'beerxml-shortcode' );
+		return <<<FERMENTATION
+		<tr>
+			<td>{$fermentation_details['name']}</td>
+			<td>{$fermentation_details['time']} $t_days</td>
+			<td>{$fermentation_details['temp']}°$t_temp</td>
+		</tr>
+FERMENTATION;
 	}
 }
 
